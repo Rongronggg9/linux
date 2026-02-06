@@ -9,8 +9,10 @@
 #include <linux/types.h>
 
 #define LWMI_SUPP_VALID		BIT(0)
-#define LWMI_SUPP_MAY_GET	(LWMI_SUPP_VALID | BIT(1))
-#define LWMI_SUPP_MAY_SET	(LWMI_SUPP_VALID | BIT(2))
+#define LWMI_SUPP_GET		BIT(1)
+#define LWMI_SUPP_SET		BIT(2)
+#define LWMI_SUPP_MAY_GET	(LWMI_SUPP_VALID | LWMI_SUPP_GET)
+#define LWMI_SUPP_MAY_SET	(LWMI_SUPP_VALID | LWMI_SUPP_SET)
 
 #define LWMI_ATTR_DEV_ID_MASK	GENMASK(31, 24)
 #define LWMI_ATTR_FEAT_ID_MASK	GENMASK(23, 16)
@@ -30,9 +32,7 @@ struct capdata00 {
 };
 
 struct capdata01 {
-	u32 id;
-	u32 supported;
-	u32 default_value;
+	struct capdata00;
 	u32 step;
 	u32 min_value;
 	u32 max_value;
