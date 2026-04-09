@@ -984,10 +984,24 @@ static struct tunable_attr_01 gpu_nv_cpu_boost = {
 	.type_id = LWMI_TYPE_ID_NONE,
 };
 
+struct capdata01_attr {
+	struct kobj_attribute kobj_attr;
+	struct tunable_attr_01 *tunable_attr;
+	union {
+		enum attribute_property prop;
+		const char *display_name;
+	};
+};
+
 struct capdata01_attr_group {
 	const struct attribute_group *attr_group;
 	struct tunable_attr_01 *tunable_attr;
 };
+
+static inline const struct capdata01_attr *kobj_attr_to_cd01_attr(struct kobj_attribute *kattr)
+{
+	return container_of(kattr, struct capdata01_attr, kobj_attr);
+}
 
 /* Attribute Methods */
 
@@ -1006,29 +1020,47 @@ static ssize_t int_type_show(struct kobject *kobj, struct kobj_attribute *kattr,
 }
 
 /**
+ * attr_display_name_show() - Get the display name of the given attribute
+ * @kobj: Pointer to the driver object.
+ * @kattr: Pointer to the attribute calling this function.
+ * @buf: The buffer to write to.
+ *
+ * Retrieves the display name from the capdata01_attr struct for the specified
+ * attribute. This function is intended to be generic so it can be called from
+ * any integer attributes.
+ *
+ * Return: Number of characters written to buf.
+ */
+static ssize_t attr_display_name_show(struct kobject *kobj,
+				      struct kobj_attribute *kattr, char *buf)
+{
+	const struct capdata01_attr *cd01_attr = kobj_attr_to_cd01_attr(kattr);
+
+	return sysfs_emit(buf, "%s\n", cd01_attr->display_name);
+}
+
+/**
  * attr_capdata01_show() - Get the value of the specified attribute property
  *
  * @kobj: Pointer to the driver object.
  * @kattr: Pointer to the attribute calling this function.
  * @buf: The buffer to write to.
- * @tunable_attr: The attribute to be read.
- * @prop: The property of this attribute to be read.
  *
  * Retrieves the given property from the capability data 01 struct for the
  * specified attribute's "custom" thermal mode. This function is intended
- * to be generic so it can be called from any integer attributes "_show"
- * function.
+ * to be generic so it can be called from any integer attributes.
  *
  * If the WMI is success the sysfs attribute is notified.
  *
  * Return: Either number of characters written to buf, or an error code.
  */
 static ssize_t attr_capdata01_show(struct kobject *kobj,
-				   struct kobj_attribute *kattr, char *buf,
-				   struct tunable_attr_01 *tunable_attr,
-				   enum attribute_property prop)
+				   struct kobj_attribute *kattr, char *buf)
 {
 	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
+	const struct capdata01_attr *cd01_attr = kobj_attr_to_cd01_attr(kattr);
+	const struct tunable_attr_01 *tunable_attr = cd01_attr->tunable_attr;
+	enum attribute_property prop = cd01_attr->prop;
 	struct capdata01 capdata;
 	u32 attribute_id;
 	int value, ret;
@@ -1066,14 +1098,13 @@ static ssize_t attr_capdata01_show(struct kobject *kobj,
  * @kattr: Pointer to the attribute calling this function.
  * @buf: The buffer to read from, this is parsed to `int` type.
  * @count: Required by sysfs attribute macros, pass in from the callee attr.
- * @tunable_attr: The attribute to be stored.
  *
  * Sets the value of the given attribute when operating under the "custom"
  * smartfan profile. The current smartfan profile is retrieved from the
  * lenovo-wmi-gamezone driver and error is returned if the result is not
  * "custom". This function is intended to be generic so it can be called from
- * any integer attribute's "_store" function. The integer to be sent to the WMI
- * method is range checked and an error code is returned if out of range.
+ * any integer attributes. The integer to be sent to the WMI method is range
+ * checked and an error code is returned if out of range.
  *
  * If the value is valid and WMI is success, then the sysfs attribute is
  * notified.
@@ -1082,10 +1113,11 @@ static ssize_t attr_capdata01_show(struct kobject *kobj,
  */
 static ssize_t attr_current_value_store(struct kobject *kobj,
 					struct kobj_attribute *kattr,
-					const char *buf, size_t count,
-					struct tunable_attr_01 *tunable_attr)
+					const char *buf, size_t count)
 {
 	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
+	const struct capdata01_attr *cd01_attr = kobj_attr_to_cd01_attr(kattr);
+	const struct tunable_attr_01 *tunable_attr = cd01_attr->tunable_attr;
 	struct wmi_method_args_32 args = {};
 	struct capdata01 capdata;
 	enum thermal_mode mode;
@@ -1130,22 +1162,22 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
  * @kobj: Pointer to the driver object.
  * @kattr: Pointer to the attribute calling this function.
  * @buf: The buffer to write to.
- * @tunable_attr: The attribute to be read.
  *
  * Retrieves the value of the given attribute for the current smartfan profile.
  * The current smartfan profile is retrieved from the lenovo-wmi-gamezone driver.
  * This function is intended to be generic so it can be called from any integer
- * attribute's "_show" function.
+ * attributes.
  *
  * If the WMI is success the sysfs attribute is notified.
  *
  * Return: Either number of characters written to buf, or an error code.
  */
 static ssize_t attr_current_value_show(struct kobject *kobj,
-				       struct kobj_attribute *kattr, char *buf,
-				       struct tunable_attr_01 *tunable_attr)
+				       struct kobj_attribute *kattr, char *buf)
 {
 	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
+	const struct capdata01_attr *cd01_attr = kobj_attr_to_cd01_attr(kattr);
+	const struct tunable_attr_01 *tunable_attr = cd01_attr->tunable_attr;
 	struct wmi_method_args_32 args = {};
 	enum thermal_mode mode;
 	int retval;
@@ -1244,128 +1276,107 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 }
 
 /* Lenovo WMI Other Mode Attribute macros */
-#define __LWMI_ATTR_RO(_func, _name)                                  \
-	{                                                             \
-		.attr = { .name = __stringify(_name), .mode = 0444 }, \
-		.show = _func##_##_name##_show,                       \
-	}
+#define __LWMI_ATTR_RO_AS(_name, _show) \
+	__ATTR(_name, 0444, _show, NULL)
 
-#define __LWMI_ATTR_RO_AS(_name, _show)                               \
-	{                                                             \
-		.attr = { .name = __stringify(_name), .mode = 0444 }, \
-		.show = _show,                                        \
-	}
-
-#define __LWMI_ATTR_RW(_func, _name) \
-	__ATTR(_name, 0644, _func##_##_name##_show, _func##_##_name##_store)
-
-/* Shows a formatted static variable */
-#define __LWMI_ATTR_SHOW_FMT(_prop, _attrname, _fmt, _val)                     \
-	static ssize_t _attrname##_##_prop##_show(                             \
-		struct kobject *kobj, struct kobj_attribute *kattr, char *buf) \
-	{                                                                      \
-		return sysfs_emit(buf, _fmt, _val);                            \
-	}                                                                      \
-	static struct kobj_attribute attr_##_attrname##_##_prop =              \
-		__LWMI_ATTR_RO(_attrname, _prop)
+#define __LWMI_ATTR_RW_AS(_name, _show, _store) \
+	__ATTR(_name, 0644, _show, _store)
 
 /* Attribute current value read/write */
 #define __LWMI_TUNABLE_CURRENT_VALUE_CAP01(_attrname)                          \
-	static ssize_t _attrname##_current_value_store(                        \
-		struct kobject *kobj, struct kobj_attribute *kattr,            \
-		const char *buf, size_t count)                                 \
-	{                                                                      \
-		return attr_current_value_store(kobj, kattr, buf, count,       \
-						&_attrname);                   \
-	}                                                                      \
-	static ssize_t _attrname##_current_value_show(                         \
-		struct kobject *kobj, struct kobj_attribute *kattr, char *buf) \
-	{                                                                      \
-		return attr_current_value_show(kobj, kattr, buf, &_attrname);  \
-	}                                                                      \
-	static struct kobj_attribute attr_##_attrname##_current_value =        \
-		__LWMI_ATTR_RW(_attrname, current_value)
+	static struct capdata01_attr ext_attr_##_attrname##_current_value = {  \
+		.kobj_attr = __LWMI_ATTR_RW_AS(current_value,                  \
+					       attr_current_value_show,        \
+					       attr_current_value_store),      \
+		.tunable_attr = &_attrname,                                    \
+	}
 
 /* Attribute property read only */
 #define __LWMI_TUNABLE_RO_CAP01(_prop, _attrname, _prop_type)                  \
-	static ssize_t _attrname##_##_prop##_show(                             \
-		struct kobject *kobj, struct kobj_attribute *kattr, char *buf) \
-	{                                                                      \
-		return attr_capdata01_show(kobj, kattr, buf, &_attrname,       \
-					   _prop_type);                        \
-	}                                                                      \
-	static struct kobj_attribute attr_##_attrname##_##_prop =              \
-		__LWMI_ATTR_RO(_attrname, _prop)
+	static struct capdata01_attr ext_attr_##_attrname##_##_prop = {        \
+		.kobj_attr = __LWMI_ATTR_RO_AS(_prop, attr_capdata01_show),    \
+		.tunable_attr = &_attrname,                                    \
+		.prop = _prop_type,                                            \
+	}
 
-#define LWMI_ATTR_GROUP_TUNABLE_CAP01(_attrname, _fsname, _dispname)      \
+/* Attribute display name */
+#define __LWMI_DISPLAY_NAME(_attrname, _val)                                   \
+	static struct capdata01_attr ext_attr_##_attrname##_display_name = {   \
+		.kobj_attr = __LWMI_ATTR_RO_AS(display_name,                   \
+					       attr_display_name_show),        \
+		.tunable_attr = &_attrname,                                    \
+		.display_name = _val,                                          \
+	}
+
+#define LWMI_ATTR_GROUP_TUNABLE_CAP01(_attrname, _dispname)               \
 	__LWMI_TUNABLE_CURRENT_VALUE_CAP01(_attrname);                    \
 	__LWMI_TUNABLE_RO_CAP01(default_value, _attrname, DEFAULT_VAL);   \
-	__LWMI_ATTR_SHOW_FMT(display_name, _attrname, "%s\n", _dispname); \
+	__LWMI_DISPLAY_NAME(_attrname, _dispname);                        \
 	__LWMI_TUNABLE_RO_CAP01(max_value, _attrname, MAX_VAL);           \
 	__LWMI_TUNABLE_RO_CAP01(min_value, _attrname, MIN_VAL);           \
 	__LWMI_TUNABLE_RO_CAP01(scalar_increment, _attrname, STEP_VAL);   \
 	static struct kobj_attribute attr_##_attrname##_type =            \
 		__LWMI_ATTR_RO_AS(type, int_type_show);                   \
 	static struct attribute *_attrname##_attrs[] = {                  \
-		&attr_##_attrname##_current_value.attr,                   \
-		&attr_##_attrname##_default_value.attr,                   \
-		&attr_##_attrname##_display_name.attr,                    \
-		&attr_##_attrname##_max_value.attr,                       \
-		&attr_##_attrname##_min_value.attr,                       \
-		&attr_##_attrname##_scalar_increment.attr,                \
+		&ext_attr_##_attrname##_current_value.kobj_attr.attr,     \
+		&ext_attr_##_attrname##_default_value.kobj_attr.attr,     \
+		&ext_attr_##_attrname##_display_name.kobj_attr.attr,      \
+		&ext_attr_##_attrname##_max_value.kobj_attr.attr,         \
+		&ext_attr_##_attrname##_min_value.kobj_attr.attr,         \
+		&ext_attr_##_attrname##_scalar_increment.kobj_attr.attr,  \
 		&attr_##_attrname##_type.attr,                            \
 		NULL,                                                     \
 	};                                                                \
 	static const struct attribute_group _attrname##_attr_group = {    \
-		.name = _fsname, .attrs = _attrname##_attrs               \
+		.name = #_attrname, .attrs = _attrname##_attrs            \
 	}
 
 /* CPU tunable attributes */
-LWMI_ATTR_GROUP_TUNABLE_CAP01(cpu_temp, "cpu_temp",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(cpu_temp,
 			      "Set the CPU thermal load limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_cpu_cl, "ppt_cpu_cl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_cpu_cl,
 			      "Set the CPU cross loading power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_apu_spl, "ppt_pl1_apu_spl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_apu_spl,
 			      "Set the APU sustained power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_spl, "ppt_pl1_spl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_spl,
 			      "Set the CPU sustained power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_spl_cl, "ppt_pl1_spl_cl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_spl_cl,
 			      "Set the CPU cross loading sustained power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl2_sppt, "ppt_pl2_sppt",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl2_sppt,
 			      "Set the CPU slow package power tracking limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl2_sppt_cl, "ppt_pl2_sppt_cl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl2_sppt_cl,
 			      "Set the CPU cross loading slow package power tracking limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl3_fppt, "ppt_pl3_fppt",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl3_fppt,
 			      "Set the CPU fast package power tracking limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl3_fppt_cl, "ppt_pl3_fppt_cl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl3_fppt_cl,
 			      "Set the CPU cross loading fast package power tracking limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_tau, "ppt_pl1_tau",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl1_tau,
 			      "Set the CPU sustained power limit exceed duration");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl4_ipl, "ppt_pl4_ipl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl4_ipl,
 			      "Set the CPU instantaneous power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl4_ipl_cl, "ppt_pl4_ipl_cl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(ppt_pl4_ipl_cl,
 			      "Set the CPU cross loading instantaneous power limit");
 
 /* GPU tunable attributes */
-LWMI_ATTR_GROUP_TUNABLE_CAP01(dgpu_boost_clk, "dgpu_boost_clk",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(dgpu_boost_clk,
 			      "Set the dedicated GPU boost clock");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(dgpu_didvid, "gpu_didvid",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(dgpu_didvid,
 			      "Get the GPU device identifier and vendor identifier");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(dgpu_enable, "dgpu_enable",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(dgpu_enable,
 			      "Set the dedicated Nvidia GPU enabled status");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_mode, "gpu_mode",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_mode,
 			      "Set the GPU mode by power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ac_offset, "gpu_nv_ac_offset",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ac_offset,
 			      "Set the Nvidia GPU AC total processing power baseline offset");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_bpl, "gpu_nv_bpl",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_bpl,
 			      "Set the Nvidia GPU base power limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_cpu_boost, "gpu_nv_cpu_boost",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_cpu_boost,
 			      "Set the Nvidia GPU to CPU dynamic boost limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ctgp, "gpu_nv_ctgp",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ctgp,
 			      "Set the GPU configurable total graphics power");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ppab, "gpu_nv_ppab",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ppab,
 			      "Set the Nvidia GPU power performance aware boost limit");
-LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_temp, "gpu_temp",
+LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_temp,
 			      "Set the GPU thermal load limit");
 
 static struct capdata01_attr_group cd01_attr_groups[] = {
