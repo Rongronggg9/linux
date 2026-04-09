@@ -133,6 +133,8 @@ struct tunable_attr_01 {
 struct tunable_attr_01_ctx {
 	u8 cd_mode_id; /* mode arg for searching capdata */
 	u8 cv_mode_id; /* mode arg for set/get current_value */
+
+	bool initialized;
 };
 
 enum { TUNABLE_ATTR_01_COUNTER_BASE = __COUNTER__ + 1 };
@@ -915,6 +917,13 @@ static inline const struct capdata01_attr *kobj_attr_to_cd01_attr(struct kobj_at
 	return container_of(kattr, struct capdata01_attr, kobj_attr);
 }
 
+static inline const struct capdata01_attr *attr_to_cd01_attr(struct attribute *attr)
+{
+	struct kobj_attribute *kattr = container_of(attr, struct kobj_attribute, attr);
+
+	return kobj_attr_to_cd01_attr(kattr);
+}
+
 /* Attribute Methods */
 
 /**
@@ -1157,6 +1166,9 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 	struct capdata01 capdata;
 	int retval, ret, i;
 
+	if (ctx->initialized)
+		return true;
+
 	/* Determine cd_mode_id */
 	for (i = 0; i < ARRAY_SIZE(modes); i++) {
 		args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, modes[i]);
@@ -1194,7 +1206,28 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 		lwmi_om_tunable_attr_to_id(tunable_attr, ctx->cd_mode_id),
 		args.arg0, capdata.supported);
 
-	return capdata.supported > 0 ? true : false;
+	ctx->initialized = true;
+	return true;
+}
+
+/**
+ * lwmi_attr_01_is_visible() - Determine if the given attribute is visible.
+ * @kobj: Pointer to the driver object.
+ * @attr: Pointer to the attribute calling this function.
+ * @n: @attr is the N-th attribute.
+ *
+ * Return: umode_t or SYSFS_GROUP_INVISIBLE.
+ */
+static umode_t lwmi_attr_01_is_visible(struct kobject *kobj, struct attribute *attr, int n)
+{
+	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
+	const struct capdata01_attr *cd01_attr = attr_to_cd01_attr(attr);
+	const struct tunable_attr_01 *tunable_attr = cd01_attr->tunable_attr;
+
+	if (n == 0 && !lwmi_attr_01_is_supported(priv, tunable_attr))
+		return SYSFS_GROUP_INVISIBLE;
+
+	return attr->mode;
 }
 
 /* Lenovo WMI Other Mode Attribute macros */
@@ -1250,7 +1283,8 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 		NULL,                                                     \
 	};                                                                \
 	static const struct attribute_group _attrname##_attr_group = {    \
-		.name = #_attrname, .attrs = _attrname##_attrs            \
+		.name = #_attrname, .attrs = _attrname##_attrs,           \
+		.is_visible = lwmi_attr_01_is_visible,                    \
 	}
 
 /* CPU tunable attributes */
@@ -1301,30 +1335,30 @@ LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ppab,
 LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_temp,
 			      "Set the GPU thermal load limit");
 
-static const struct capdata01_attr_group cd01_attr_groups[] = {
-	{ &cpu_temp_attr_group, &cpu_temp },
-	{ &dgpu_boost_clk_attr_group, &dgpu_boost_clk },
-	{ &dgpu_didvid_attr_group, &dgpu_didvid },
-	{ &dgpu_enable_attr_group, &dgpu_enable },
-	{ &gpu_mode_attr_group, &gpu_mode },
-	{ &gpu_nv_ac_offset_attr_group, &gpu_nv_ac_offset },
-	{ &gpu_nv_bpl_attr_group, &gpu_nv_bpl },
-	{ &gpu_nv_cpu_boost_attr_group, &gpu_nv_cpu_boost },
-	{ &gpu_nv_ctgp_attr_group, &gpu_nv_ctgp },
-	{ &gpu_nv_ppab_attr_group, &gpu_nv_ppab },
-	{ &gpu_temp_attr_group, &gpu_temp },
-	{ &ppt_cpu_cl_attr_group, &ppt_cpu_cl },
-	{ &ppt_pl1_apu_spl_attr_group, &ppt_pl1_apu_spl },
-	{ &ppt_pl1_spl_attr_group, &ppt_pl1_spl },
-	{ &ppt_pl1_spl_cl_attr_group, &ppt_pl1_spl_cl },
-	{ &ppt_pl1_tau_attr_group, &ppt_pl1_tau },
-	{ &ppt_pl2_sppt_attr_group, &ppt_pl2_sppt },
-	{ &ppt_pl2_sppt_cl_attr_group, &ppt_pl2_sppt_cl },
-	{ &ppt_pl3_fppt_attr_group, &ppt_pl3_fppt },
-	{ &ppt_pl3_fppt_cl_attr_group, &ppt_pl3_fppt_cl },
-	{ &ppt_pl4_ipl_attr_group, &ppt_pl4_ipl },
-	{ &ppt_pl4_ipl_cl_attr_group, &ppt_pl4_ipl_cl },
-	{},
+static const struct attribute_group *cd01_attr_groups[] = {
+	&cpu_temp_attr_group,
+	&dgpu_boost_clk_attr_group,
+	&dgpu_didvid_attr_group,
+	&dgpu_enable_attr_group,
+	&gpu_mode_attr_group,
+	&gpu_nv_ac_offset_attr_group,
+	&gpu_nv_bpl_attr_group,
+	&gpu_nv_cpu_boost_attr_group,
+	&gpu_nv_ctgp_attr_group,
+	&gpu_nv_ppab_attr_group,
+	&gpu_temp_attr_group,
+	&ppt_cpu_cl_attr_group,
+	&ppt_pl1_apu_spl_attr_group,
+	&ppt_pl1_spl_attr_group,
+	&ppt_pl1_spl_cl_attr_group,
+	&ppt_pl1_tau_attr_group,
+	&ppt_pl2_sppt_attr_group,
+	&ppt_pl2_sppt_cl_attr_group,
+	&ppt_pl3_fppt_attr_group,
+	&ppt_pl3_fppt_cl_attr_group,
+	&ppt_pl4_ipl_attr_group,
+	&ppt_pl4_ipl_cl_attr_group,
+	NULL,
 };
 
 /**
@@ -1333,7 +1367,6 @@ static const struct capdata01_attr_group cd01_attr_groups[] = {
  */
 static void lwmi_om_fw_attr_add(struct lwmi_om_priv *priv)
 {
-	unsigned int i;
 	int err;
 
 	priv->ida_id = ida_alloc(&lwmi_om_ida, GFP_KERNEL);
@@ -1359,21 +1392,14 @@ static void lwmi_om_fw_attr_add(struct lwmi_om_priv *priv)
 
 	dev_set_drvdata(priv->fw_attr_dev, priv);
 
-	for (i = 0; i < ARRAY_SIZE(cd01_attr_groups) - 1; i++) {
-		if (!lwmi_attr_01_is_supported(priv, cd01_attr_groups[i].tunable_attr))
-			continue;
+	err = sysfs_create_groups(&priv->fw_attr_kset->kobj, cd01_attr_groups);
+	if (err)
+		goto err_remove_groups;
 
-		err = sysfs_create_group(&priv->fw_attr_kset->kobj,
-					 cd01_attr_groups[i].attr_group);
-		if (err)
-			goto err_remove_groups;
-	}
 	return;
 
 err_remove_groups:
-	while (i--)
-		sysfs_remove_group(&priv->fw_attr_kset->kobj,
-				   cd01_attr_groups[i].attr_group);
+	sysfs_remove_groups(&priv->fw_attr_kset->kobj, cd01_attr_groups);
 
 	kset_unregister(priv->fw_attr_kset);
 
@@ -1399,9 +1425,7 @@ static void lwmi_om_fw_attr_remove(struct lwmi_om_priv *priv)
 	if (priv->ida_id < 0)
 		return;
 
-	for (unsigned int i = 0; i < ARRAY_SIZE(cd01_attr_groups) - 1; i++)
-		sysfs_remove_group(&priv->fw_attr_kset->kobj,
-				   cd01_attr_groups[i].attr_group);
+	sysfs_remove_groups(&priv->fw_attr_kset->kobj, cd01_attr_groups);
 
 	kset_unregister(priv->fw_attr_kset);
 	device_unregister(priv->fw_attr_dev);
