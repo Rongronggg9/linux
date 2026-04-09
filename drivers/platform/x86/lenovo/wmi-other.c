@@ -127,15 +127,23 @@ struct tunable_attr_01 {
 	u8 feature_id;
 	u8 device_id;
 	u8 type_id;
+	u8 ctx_id; /* Indexes tunable_attr_01_ctx[] */
+};
+
+struct tunable_attr_01_ctx {
 	u8 cd_mode_id; /* mode arg for searching capdata */
 	u8 cv_mode_id; /* mode arg for set/get current_value */
 };
 
+enum { TUNABLE_ATTR_01_COUNTER_BASE = __COUNTER__ + 1 };
+#define TUNABLE_ATTR_01_COUNTER (__COUNTER__ - TUNABLE_ATTR_01_COUNTER_BASE)
+
 #define DEFINE_TUNABLE_ATTR_01(_name, _device, _feature, _type)	\
-	static struct tunable_attr_01 _name = {			\
+	static const struct tunable_attr_01 _name = {		\
 		.device_id = LWMI_DEVICE_ID_##_device,		\
 		.feature_id = LWMI_FEATURE_ID_##_feature,	\
 		.type_id = LWMI_TYPE_ID_##_type,		\
+		.ctx_id = TUNABLE_ATTR_01_COUNTER,		\
 	}
 
 DEFINE_TUNABLE_ATTR_01(ppt_pl1_spl, CPU, CPU_SPL, NONE);
@@ -161,6 +169,10 @@ DEFINE_TUNABLE_ATTR_01(dgpu_didvid, GPU, DGPU_DIDVID, NONE);
 DEFINE_TUNABLE_ATTR_01(gpu_nv_bpl, GPU, GPU_NV_BPL, NONE);
 DEFINE_TUNABLE_ATTR_01(gpu_nv_cpu_boost, GPU, GPU_NV_CPU_BOOST, NONE);
 
+enum { TUNABLE_ATTR_01_NR = TUNABLE_ATTR_01_COUNTER };
+
+static_assert(TUNABLE_ATTR_01_NR > 0 && TUNABLE_ATTR_01_NR < U8_MAX);
+
 struct lwmi_om_priv {
 	struct component_master_ops *ops;
 
@@ -175,6 +187,8 @@ struct lwmi_om_priv {
 	int ida_id;
 
 	struct lwmi_fan_info fan_info[LWMI_FAN_NR];
+
+	struct tunable_attr_01_ctx tunable_attr_ctx[TUNABLE_ATTR_01_NR];
 
 	struct {
 		bool capdata00_collected : 1;
@@ -884,7 +898,7 @@ static void lwmi_om_psy_remove(struct lwmi_om_priv *priv)
 
 struct capdata01_attr {
 	struct kobj_attribute kobj_attr;
-	struct tunable_attr_01 *tunable_attr;
+	const struct tunable_attr_01 *tunable_attr;
 	union {
 		enum attribute_property prop;
 		const char *display_name;
@@ -893,7 +907,7 @@ struct capdata01_attr {
 
 struct capdata01_attr_group {
 	const struct attribute_group *attr_group;
-	struct tunable_attr_01 *tunable_attr;
+	const struct tunable_attr_01 *tunable_attr;
 };
 
 static inline const struct capdata01_attr *kobj_attr_to_cd01_attr(struct kobj_attribute *kattr)
@@ -1029,6 +1043,7 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
 	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
 	const struct capdata01_attr *cd01_attr = kobj_attr_to_cd01_attr(kattr);
 	const struct tunable_attr_01 *tunable_attr = cd01_attr->tunable_attr;
+	struct tunable_attr_01_ctx *ctx = &priv->tunable_attr_ctx[tunable_attr->ctx_id];
 	struct wmi_method_args_32 args = {};
 	struct capdata01 capdata;
 	enum thermal_mode mode;
@@ -1042,7 +1057,7 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
 	if (mode != LWMI_GZ_THERMAL_MODE_CUSTOM)
 		return -EBUSY;
 
-	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cd_mode_id);
+	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, ctx->cd_mode_id);
 
 	ret = lwmi_cd01_get_data(priv->cd01_list, args.arg0, &capdata);
 	if (ret)
@@ -1055,7 +1070,7 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
 	if (value < capdata.min_value || value > capdata.max_value)
 		return -EINVAL;
 
-	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cv_mode_id);
+	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, ctx->cv_mode_id);
 	args.arg1 = value;
 
 	ret = lwmi_dev_evaluate_int(priv->wdev, 0x0, LWMI_FEATURE_VALUE_SET,
@@ -1087,6 +1102,7 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
 	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
 	const struct capdata01_attr *cd01_attr = kobj_attr_to_cd01_attr(kattr);
 	const struct tunable_attr_01 *tunable_attr = cd01_attr->tunable_attr;
+	struct tunable_attr_01_ctx *ctx = &priv->tunable_attr_ctx[tunable_attr->ctx_id];
 	struct wmi_method_args_32 args = {};
 	enum thermal_mode mode;
 	int retval;
@@ -1097,10 +1113,10 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
 		return ret;
 
 	/* If "no-mode" is the supported mode, ensure we never send current mode */
-	if (tunable_attr->cv_mode_id == LWMI_GZ_THERMAL_MODE_NONE)
-		mode = tunable_attr->cv_mode_id;
+	if (ctx->cv_mode_id == LWMI_GZ_THERMAL_MODE_NONE)
+		mode = ctx->cv_mode_id;
 
-	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cv_mode_id);
+	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, mode);
 
 	ret = lwmi_dev_evaluate_int(priv->wdev, 0x0, LWMI_FEATURE_VALUE_GET,
 				    (unsigned char *)&args, sizeof(args),
@@ -1125,14 +1141,15 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
  * an error, we assume that mode is not supported. If any of the above checks
  * fail then the attribute is not fully supported.
  *
- * The probed cd_mode_id/cv_mode_id are stored on the tunable_attr for later
+ * The probed cd_mode_id/cv_mode_id are stored on tunable_attr_ctx for later
  * reference.
  *
  * Return: bool.
  */
 static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
-				      struct tunable_attr_01 *tunable_attr)
+				      const struct tunable_attr_01 *tunable_attr)
 {
+	struct tunable_attr_01_ctx *ctx = &priv->tunable_attr_ctx[tunable_attr->ctx_id];
 	u8 modes[2] = { LWMI_GZ_THERMAL_MODE_CUSTOM, LWMI_GZ_THERMAL_MODE_NONE };
 	struct wmi_method_args_32 args = {};
 	bool cd_mode_found = false;
@@ -1140,14 +1157,14 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 	struct capdata01 capdata;
 	int retval, ret, i;
 
-	/* Determine tunable_attr->cd_mode_id*/
+	/* Determine cd_mode_id */
 	for (i = 0; i < ARRAY_SIZE(modes); i++) {
 		args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, modes[i]);
 
 		ret = lwmi_cd01_get_data(priv->cd01_list, args.arg0, &capdata);
 		if (ret || !capdata.supported)
 			continue;
-		tunable_attr->cd_mode_id = modes[i];
+		ctx->cd_mode_id = modes[i];
 		cd_mode_found = true;
 		break;
 	}
@@ -1155,7 +1172,7 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 	if (!cd_mode_found)
 		return cd_mode_found;
 
-	/* Determine tunable_attr->cv_mode_id, returns 1 if supported*/
+	/* Determine cv_mode_id, returns 1 if supported */
 	for (i = 0; i < ARRAY_SIZE(modes); i++) {
 		args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, modes[i]);
 
@@ -1164,7 +1181,7 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 					    &retval);
 		if (ret || !retval)
 			continue;
-		tunable_attr->cv_mode_id = modes[i];
+		ctx->cv_mode_id = modes[i];
 		cv_mode_found = true;
 		break;
 	}
@@ -1174,7 +1191,7 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 
 	dev_dbg(&priv->wdev->dev,
 		"cd_mode_id: %#010x, cv_mode_id: %#010x, attribute support level: %#010x\n",
-		lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cd_mode_id),
+		lwmi_om_tunable_attr_to_id(tunable_attr, ctx->cd_mode_id),
 		args.arg0, capdata.supported);
 
 	return capdata.supported > 0 ? true : false;
@@ -1284,7 +1301,7 @@ LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_nv_ppab,
 LWMI_ATTR_GROUP_TUNABLE_CAP01(gpu_temp,
 			      "Set the GPU thermal load limit");
 
-static struct capdata01_attr_group cd01_attr_groups[] = {
+static const struct capdata01_attr_group cd01_attr_groups[] = {
 	{ &cpu_temp_attr_group, &cpu_temp },
 	{ &dgpu_boost_clk_attr_group, &dgpu_boost_clk },
 	{ &dgpu_didvid_attr_group, &dgpu_didvid },
