@@ -845,7 +845,6 @@ static void lwmi_om_psy_remove(struct lwmi_om_priv *priv)
 /* ======== fw_attributes (component: lenovo-wmi-capdata 01) ======== */
 
 struct tunable_attr_01 {
-	struct device *dev;
 	u8 feature_id;
 	u8 device_id;
 	u8 type_id;
@@ -1029,7 +1028,7 @@ static ssize_t attr_capdata01_show(struct kobject *kobj,
 				   struct tunable_attr_01 *tunable_attr,
 				   enum attribute_property prop)
 {
-	struct lwmi_om_priv *priv = dev_get_drvdata(tunable_attr->dev);
+	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
 	struct capdata01 capdata;
 	u32 attribute_id;
 	int value, ret;
@@ -1086,7 +1085,7 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
 					const char *buf, size_t count,
 					struct tunable_attr_01 *tunable_attr)
 {
-	struct lwmi_om_priv *priv = dev_get_drvdata(tunable_attr->dev);
+	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
 	struct wmi_method_args_32 args = {};
 	struct capdata01 capdata;
 	enum thermal_mode mode;
@@ -1146,7 +1145,7 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
 				       struct kobj_attribute *kattr, char *buf,
 				       struct tunable_attr_01 *tunable_attr)
 {
-	struct lwmi_om_priv *priv = dev_get_drvdata(tunable_attr->dev);
+	struct lwmi_om_priv *priv = dev_get_drvdata(kobj_to_dev(kobj->parent));
 	struct wmi_method_args_32 args = {};
 	enum thermal_mode mode;
 	int retval;
@@ -1174,6 +1173,7 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
 
 /**
  * lwmi_attr_01_is_supported() - Determine if the given attribute is supported.
+ * @priv: Driver private data
  * @tunable_attr: The attribute to verify.
  *
  * First check if the attribute has a corresponding capdata01 table in the cd01
@@ -1190,10 +1190,10 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
  *
  * Return: bool.
  */
-static bool lwmi_attr_01_is_supported(struct tunable_attr_01 *tunable_attr)
+static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
+				      struct tunable_attr_01 *tunable_attr)
 {
 	u8 modes[2] = { LWMI_GZ_THERMAL_MODE_CUSTOM, LWMI_GZ_THERMAL_MODE_NONE };
-	struct lwmi_om_priv *priv = dev_get_drvdata(tunable_attr->dev);
 	struct wmi_method_args_32 args = {};
 	bool cd_mode_found = false;
 	bool cv_mode_found = false;
@@ -1234,7 +1234,7 @@ static bool lwmi_attr_01_is_supported(struct tunable_attr_01 *tunable_attr)
 	if (!cv_mode_found)
 		return cv_mode_found;
 
-	dev_dbg(tunable_attr->dev,
+	dev_dbg(&priv->wdev->dev,
 		"cd_mode_id: %#010x, cv_mode_id: %#010x, attribute support level: %#010x\n",
 		lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
 			     tunable_attr->cd_mode_id, tunable_attr->type_id),
@@ -1424,9 +1424,10 @@ static void lwmi_om_fw_attr_add(struct lwmi_om_priv *priv)
 		goto err_destroy_classdev;
 	}
 
+	dev_set_drvdata(priv->fw_attr_dev, priv);
+
 	for (i = 0; i < ARRAY_SIZE(cd01_attr_groups) - 1; i++) {
-		cd01_attr_groups[i].tunable_attr->dev = &priv->wdev->dev;
-		if (!lwmi_attr_01_is_supported(cd01_attr_groups[i].tunable_attr))
+		if (!lwmi_attr_01_is_supported(priv, cd01_attr_groups[i].tunable_attr))
 			continue;
 
 		err = sysfs_create_group(&priv->fw_attr_kset->kobj,
