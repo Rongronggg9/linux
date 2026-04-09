@@ -123,6 +123,44 @@ struct lwmi_fan_info {
 	long max_rpm;
 };
 
+struct tunable_attr_01 {
+	u8 feature_id;
+	u8 device_id;
+	u8 type_id;
+	u8 cd_mode_id; /* mode arg for searching capdata */
+	u8 cv_mode_id; /* mode arg for set/get current_value */
+};
+
+#define DEFINE_TUNABLE_ATTR_01(_name, _device, _feature, _type)	\
+	static struct tunable_attr_01 _name = {			\
+		.device_id = LWMI_DEVICE_ID_##_device,		\
+		.feature_id = LWMI_FEATURE_ID_##_feature,	\
+		.type_id = LWMI_TYPE_ID_##_type,		\
+	}
+
+DEFINE_TUNABLE_ATTR_01(ppt_pl1_spl, CPU, CPU_SPL, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl1_spl_cl, CPU, CPU_SPL, CROSSLOAD);
+DEFINE_TUNABLE_ATTR_01(ppt_pl2_sppt, CPU, CPU_SPPT, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl2_sppt_cl, CPU, CPU_SPPT, CROSSLOAD);
+DEFINE_TUNABLE_ATTR_01(ppt_pl3_fppt, CPU, CPU_FPPT, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl3_fppt_cl, CPU, CPU_FPPT, CROSSLOAD);
+DEFINE_TUNABLE_ATTR_01(cpu_temp, CPU, CPU_TEMP, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl1_apu_spl, CPU, CPU_APU, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_cpu_cl, CPU, CPU_CL, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl1_tau, CPU, CPU_TAU, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl4_ipl, CPU, CPU_IPL, NONE);
+DEFINE_TUNABLE_ATTR_01(ppt_pl4_ipl_cl, CPU, CPU_IPL, CROSSLOAD);
+DEFINE_TUNABLE_ATTR_01(gpu_nv_ppab, GPU, GPU_NV_PPAB, NONE);
+DEFINE_TUNABLE_ATTR_01(gpu_nv_ctgp, GPU, GPU_NV_CTGP, NONE);
+DEFINE_TUNABLE_ATTR_01(gpu_temp, GPU, GPU_TEMP, NONE);
+DEFINE_TUNABLE_ATTR_01(gpu_nv_ac_offset, GPU, GPU_AC_OFFSET, NONE);
+DEFINE_TUNABLE_ATTR_01(dgpu_boost_clk, GPU, DGPU_BOOST_CLK, NONE);
+DEFINE_TUNABLE_ATTR_01(dgpu_enable, GPU, DGPU_EN, NONE);
+DEFINE_TUNABLE_ATTR_01(gpu_mode, GPU, GPU_MODE, NONE);
+DEFINE_TUNABLE_ATTR_01(dgpu_didvid, GPU, DGPU_DIDVID, NONE);
+DEFINE_TUNABLE_ATTR_01(gpu_nv_bpl, GPU, GPU_NV_BPL, NONE);
+DEFINE_TUNABLE_ATTR_01(gpu_nv_cpu_boost, GPU, GPU_NV_CPU_BOOST, NONE);
+
 struct lwmi_om_priv {
 	struct component_master_ops *ops;
 
@@ -844,146 +882,6 @@ static void lwmi_om_psy_remove(struct lwmi_om_priv *priv)
 
 /* ======== fw_attributes (component: lenovo-wmi-capdata 01) ======== */
 
-struct tunable_attr_01 {
-	u8 feature_id;
-	u8 device_id;
-	u8 type_id;
-	u8 cd_mode_id; /* mode arg for searching capdata */
-	u8 cv_mode_id; /* mode arg for set/get current_value */
-};
-
-static struct tunable_attr_01 ppt_pl1_spl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_SPL,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl1_spl_cl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_SPL,
-	.type_id = LWMI_TYPE_ID_CROSSLOAD,
-};
-
-static struct tunable_attr_01 ppt_pl2_sppt = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_SPPT,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl2_sppt_cl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_SPPT,
-	.type_id = LWMI_TYPE_ID_CROSSLOAD,
-};
-
-static struct tunable_attr_01 ppt_pl3_fppt = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_FPPT,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl3_fppt_cl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_FPPT,
-	.type_id = LWMI_TYPE_ID_CROSSLOAD,
-};
-
-static struct tunable_attr_01 cpu_temp = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_TEMP,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl1_apu_spl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_APU,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_cpu_cl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_CL,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl1_tau = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_TAU,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl4_ipl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_IPL,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 ppt_pl4_ipl_cl = {
-	.device_id = LWMI_DEVICE_ID_CPU,
-	.feature_id = LWMI_FEATURE_ID_CPU_IPL,
-	.type_id = LWMI_TYPE_ID_CROSSLOAD,
-};
-
-static struct tunable_attr_01 gpu_nv_ppab = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_NV_PPAB,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 gpu_nv_ctgp = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_NV_CTGP,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 gpu_temp = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_TEMP,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 gpu_nv_ac_offset = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_AC_OFFSET,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 dgpu_boost_clk = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_DGPU_BOOST_CLK,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 dgpu_enable = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_DGPU_EN,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 gpu_mode = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_MODE,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 dgpu_didvid = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_DGPU_DIDVID,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 gpu_nv_bpl = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_NV_BPL,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
-static struct tunable_attr_01 gpu_nv_cpu_boost = {
-	.device_id = LWMI_DEVICE_ID_GPU,
-	.feature_id = LWMI_FEATURE_ID_GPU_NV_CPU_BOOST,
-	.type_id = LWMI_TYPE_ID_NONE,
-};
-
 struct capdata01_attr {
 	struct kobj_attribute kobj_attr;
 	struct tunable_attr_01 *tunable_attr;
@@ -1004,6 +902,20 @@ static inline const struct capdata01_attr *kobj_attr_to_cd01_attr(struct kobj_at
 }
 
 /* Attribute Methods */
+
+/**
+ * lwmi_om_tunable_attr_to_id() - Formats a capability data attribute ID using
+ * tunable_attr_01
+ * @tunable_attr: Pointer to struct tunable_attr_01.
+ * @mode_id: The u8 corresponding to the wmi-gamezone mode for set/get.
+ *
+ * Return: u32.
+ */
+static inline u32 lwmi_om_tunable_attr_to_id(const struct tunable_attr_01 *tunable_attr, u8 mode_id)
+{
+	return lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
+			    mode_id, tunable_attr->type_id);
+}
 
 /**
  * int_type_show() - Emit the data type for an integer attribute
@@ -1065,8 +977,7 @@ static ssize_t attr_capdata01_show(struct kobject *kobj,
 	u32 attribute_id;
 	int value, ret;
 
-	attribute_id = lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-				    LWMI_GZ_THERMAL_MODE_CUSTOM, tunable_attr->type_id);
+	attribute_id = lwmi_om_tunable_attr_to_id(tunable_attr, LWMI_GZ_THERMAL_MODE_CUSTOM);
 
 	ret = lwmi_cd01_get_data(priv->cd01_list, attribute_id, &capdata);
 	if (ret)
@@ -1131,8 +1042,7 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
 	if (mode != LWMI_GZ_THERMAL_MODE_CUSTOM)
 		return -EBUSY;
 
-	args.arg0 = lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-				 tunable_attr->cd_mode_id, tunable_attr->type_id);
+	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cd_mode_id);
 
 	ret = lwmi_cd01_get_data(priv->cd01_list, args.arg0, &capdata);
 	if (ret)
@@ -1145,8 +1055,7 @@ static ssize_t attr_current_value_store(struct kobject *kobj,
 	if (value < capdata.min_value || value > capdata.max_value)
 		return -EINVAL;
 
-	args.arg0 = lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-				 tunable_attr->cv_mode_id, tunable_attr->type_id);
+	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cv_mode_id);
 	args.arg1 = value;
 
 	ret = lwmi_dev_evaluate_int(priv->wdev, 0x0, LWMI_FEATURE_VALUE_SET,
@@ -1191,8 +1100,7 @@ static ssize_t attr_current_value_show(struct kobject *kobj,
 	if (tunable_attr->cv_mode_id == LWMI_GZ_THERMAL_MODE_NONE)
 		mode = tunable_attr->cv_mode_id;
 
-	args.arg0 = lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-				 tunable_attr->cv_mode_id, tunable_attr->type_id);
+	args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cv_mode_id);
 
 	ret = lwmi_dev_evaluate_int(priv->wdev, 0x0, LWMI_FEATURE_VALUE_GET,
 				    (unsigned char *)&args, sizeof(args),
@@ -1234,8 +1142,7 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 
 	/* Determine tunable_attr->cd_mode_id*/
 	for (i = 0; i < ARRAY_SIZE(modes); i++) {
-		args.arg0 = lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-					 modes[i], tunable_attr->type_id);
+		args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, modes[i]);
 
 		ret = lwmi_cd01_get_data(priv->cd01_list, args.arg0, &capdata);
 		if (ret || !capdata.supported)
@@ -1250,8 +1157,7 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 
 	/* Determine tunable_attr->cv_mode_id, returns 1 if supported*/
 	for (i = 0; i < ARRAY_SIZE(modes); i++) {
-		args.arg0 = lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-					 modes[i], tunable_attr->type_id);
+		args.arg0 = lwmi_om_tunable_attr_to_id(tunable_attr, modes[i]);
 
 		ret = lwmi_dev_evaluate_int(priv->wdev, 0x0, LWMI_FEATURE_VALUE_GET,
 					    (unsigned char *)&args, sizeof(args),
@@ -1268,8 +1174,7 @@ static bool lwmi_attr_01_is_supported(struct lwmi_om_priv *priv,
 
 	dev_dbg(&priv->wdev->dev,
 		"cd_mode_id: %#010x, cv_mode_id: %#010x, attribute support level: %#010x\n",
-		lwmi_attr_id(tunable_attr->device_id, tunable_attr->feature_id,
-			     tunable_attr->cd_mode_id, tunable_attr->type_id),
+		lwmi_om_tunable_attr_to_id(tunable_attr, tunable_attr->cd_mode_id),
 		args.arg0, capdata.supported);
 
 	return capdata.supported > 0 ? true : false;
